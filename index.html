@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>DUAL // FUSION — OS Kernel v12.0 — FINAL VAULT (Refactor)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#030406">
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.7/purify.min.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<link rel="manifest" href="manifest.json"> <meta name="theme-color" content="#030406"> <link rel="apple-touch-icon" href="./icon-192.png">
+  <script> if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js') .then(() => console.log('Service Worker Registered')); } </script>
+  <style>
+    /* ----------------- CORE STYLES (unchanged visual) ----------------- */
+    :root{
+      --bg-deep:#030406;
+      --glass-surface:rgba(20,20,25,0.65);
+      --glass-border:rgba(255,255,255,0.06);
+      --neon-cyan:#00f2ff; --neon-purple:#bd00ff; --neon-green:#23ac51; --neon-orange:#ff9a3c;
+      --font-ui:'Montserrat',sans-serif; --font-code:'JetBrains Mono',monospace;
+    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; outline:none;}
+    body{
+      margin:0; padding:0; min-height:100vh; background:var(--bg-deep); color:#fff; font-family:var(--font-ui);
+      display:flex; justify-content:center; overflow-y:auto; overflow-x:hidden;
+      background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size:50px 50px;
+    }
+
+    /* Ambient blobs */
+    .ambient-light{position:fixed;inset:0;z-index:0;pointer-events:none}
+    .blob{position:absolute;border-radius:50%;filter:blur(100px);opacity:0.14;animation:float 25s infinite alternate}
+    .blob-1{width:60vw;height:60vw;background:var(--neon-cyan);top:-20%;left:-20%}
+    .blob-2{width:50vw;height:50vw;background:var(--neon-purple);bottom:-20%;right:-20%;animation-delay:-5s}
+    @keyframes float{0%{transform:translate(0,0)}100%{transform:translate(40px,60px)}}
+
+    /* Container */
+    .container{width:100%;max-width:960px;padding:40px 20px 80px;z-index:10;display:flex;gap:24px;align-items:flex-start;justify-content:center}
+    
+    /* Left: Fusion card */
+    .fusion-card{width:100%;max-width:380px;background:var(--glass-surface);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--glass-border);border-radius:36px;padding:24px;box-shadow:0 40px 100px rgba(0,0,0,0.8);position:relative;overflow:hidden;flex-shrink:0}
+    .card-header{display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer}
+    .avatar-slot{width:64px;height:64px;border-radius:12px;overflow:hidden}
+    .brand-dual{font-size:2.2rem;font-weight:900;line-height:0.95;background:linear-gradient(-45deg,#fff,var(--neon-cyan),var(--neon-purple),#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;animation:gradientFlow 4s linear infinite}
+    @keyframes gradientFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    
+    .small-preview{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-family:var(--font-code);font-size:0.86rem;cursor:pointer}
+    .mini-avatar{width:30px;height:30px;border-radius:6px;overflow:hidden}
+    .ident-badge{margin-left:auto;font-weight:700;font-size:0.78rem;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.9)}
+    
+    .card-body{display:flex;flex-direction:column;gap:12px}
+    .cyber-input{width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px 50px 16px 18px;color:#fff;font-family:var(--font-code);font-size:0.9rem}
+    .trigger-btn{width:100%;padding:12px;border:1px dashed rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.5);font-size:0.75rem;letter-spacing:1px;display:flex;justify-content:center;align-items:center;gap:8px;cursor:pointer; transition:all 0.2s}
+    .trigger-btn:hover{background:rgba(255,255,255,0.05);color:#fff;border-color:rgba(255,255,255,0.3)}
+    
+    /* Stagger & Morph Logic */
+    .stagger-item{opacity:0;transform:translateY(15px);transition:opacity 0.4s ease,transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)}
+    .content-visible .stagger-item{opacity:1;transform:translateY(0)}
+    .stagger-item:nth-child(1){transition-delay:0ms} .stagger-item:nth-child(2){transition-delay:50ms} .stagger-item:nth-child(3){transition-delay:100ms} .stagger-item:nth-child(4){transition-delay:150ms}
+    .fusion-card.closed .card-body{display:none} .fusion-card.closed .small-preview{display:flex} .fusion-card:not(.closed) .small-preview{display:none}
+
+    /* Stats/Modules */
+    .modules-inner{display:flex;flex-direction:column;gap:12px}
+    .html-module-slot{border:1px solid var(--neon-orange);background:rgba(255,154,60,0.05);border-radius:12px;padding:12px;min-height:56px;display:flex;align-items:center;justify-content:center;color:var(--neon-orange);font-family:var(--font-code);font-size:0.7rem}
+    .preview-area{margin-top:10px;border-radius:12px;background:rgba(0,0,0,0.18);padding:10px;min-height:40px}
+
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+    .stat-box{background:rgba(255,255,255,0.03);border-radius:12px;padding:10px;text-align:center}
+    .stat-lbl{font-size:0.55rem;color:rgba(255,255,255,0.4);display:block;margin-bottom:4px}
+    .stat-val{font-family:var(--font-code);font-size:0.9rem;font-weight:700;color:var(--neon-cyan)}
+    .bar-track{height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin:8px 0}
+    .bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--neon-cyan),var(--neon-purple));transition:width 1.2s ease-out}
+
+    /* Activation */
+    .activation-card{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.04);padding:12px;border-radius:10px}
+    .activation-pre{font-family:var(--font-code);white-space:pre-wrap;margin:0;padding:10px;background:rgba(0,0,0,0.12);border-radius:8px;border:1px dashed rgba(255,255,255,0.03);color:#fff;font-size:0.8rem;overflow-x:auto}
+    .activation-hidden{display:none}
+
+    /* CodeMirror Override */
+    .CodeMirror{border-radius:8px;background:#071018 !important;border:1px solid rgba(255,255,255,0.1)}
+    .cm-s-material .CodeMirror-gutters{background:#071018 !important;border-right:1px solid rgba(255,255,255,0.05)}
+    
+    /* Responsive */
+    @media(max-width:900px){.container{flex-direction:column;align-items:stretch;padding:24px} .fusion-card{max-width:100%}}
+    
+    /* Immersive & Modal */
+    #immersiveLayer{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity 0.3s}
+    #immersiveLayer.active{opacity:1;pointer-events:all}
+    .immersive-header{height:50px;border-bottom:1px solid #333;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:#050505}
+    .fs-header-btn{height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.03);color:#cbd5e1;border:1px solid transparent;cursor:pointer;font-weight:700;font-size:0.7rem}
+    .fs-save{border-color:rgba(35,172,81,0.3);color:var(--neon-green);background:rgba(35,172,81,0.1)}
+
+    /* Save Modal */
+    .save-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:10010}
+    .save-modal-backdrop.active{display:flex}
+    .save-modal{width:480px;max-width:92%;border-radius:14px;background:linear-gradient(180deg,rgba(15,15,20,0.98),rgba(10,10,12,0.98));border:1px solid rgba(255,255,255,0.08);padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.8);font-family:Plus Jakarta Sans}
+    .save-modal h3{margin:0 0 8px 0;font-size:1.1rem;color:var(--neon-cyan)}
+    .save-row{display:flex;gap:10px;margin-bottom:10px}
+    .save-row .input{flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:10px 12px;border-radius:8px;color:#e6eef8;font-family:var(--font-code);font-size:0.9rem}
+    .save-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+    .btn-ghost{background:transparent;color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);padding:8px 14px;border-radius:8px;cursor:pointer}
+    .btn-primary{background:var(--neon-green);color:#000;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700}
+    .save-preview{max-height:160px;overflow:auto;background:rgba(0,0,0,0.45);border-radius:8px;padding:10px;font-family:var(--font-code);font-size:0.75rem;color:#dbeafe;border:1px solid rgba(255,255,255,0.03);margin-top:8px;white-space:pre-wrap}
+
+    /* --- VAULT VISUAL GRID & NEW CONTROLS --- */
+    .vault-grid{
+        display:grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap:12px;
+        margin-top:10px;
+    }
+    .vault-card{
+        background:rgba(255,255,255,0.03);
+        border:1px solid rgba(255,255,255,0.05);
+        border-radius:12px;
+        padding:12px;
+        display:flex;
+        flex-direction:column;
+        justify-content:space-between;
+        transition:all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        position:relative;
+        overflow:hidden;
+        min-height: 110px;
+    }
+    /* Thumb Styling */
+    .vc-thumb{width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:8px;background:#071018;border:1px solid rgba(255,255,255,0.05)}
+    .vc-no-thumb{width:100%;height:80px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:8px;color:rgba(255,255,255,0.2);font-size:0.7rem;border:1px dashed rgba(255,255,255,0.05)}
+
+    .vault-card:hover{
+        background:rgba(255,255,255,0.06);
+        border-color:var(--neon-cyan);
+        transform:translateY(-3px);
+        box-shadow:0 10px 20px rgba(0,0,0,0.3);
+    }
+    .vc-tag-line{width:30px;height:3px;background:var(--neon-cyan);border-radius:2px;margin-bottom:8px;opacity:0.6}
+    .vc-title{font-weight:700;font-size:0.8rem;color:#fff;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}
+    .vc-meta{font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end}
+    
+    .vc-controls{
+        display:flex; gap:6px; margin-top:10px; opacity:0; transition:0.2s; transform:translateY(5px);
+    }
+    .vault-card:hover .vc-controls{opacity:1; transform:translateY(0)}
+    
+    .vc-btn{
+        flex:1; border:none; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.8);
+        border-radius:6px; padding:4px; font-size:0.7rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    }
+    .vc-btn:hover{background:rgba(255,255,255,0.25); color:#fff}
+    .vc-btn.del:hover{background:rgba(255,80,80,0.3); color:#ff8080}
+    .vc-btn.regen:hover{background:rgba(255,200,0,0.2); color:#ffc800}
+
+    /* Animation for regen button */
+    @keyframes spin { 100% { transform:rotate(360deg); } }
+    .spin-anim { animation: spin 1s linear infinite; pointer-events:none; opacity:0.7; }
+    
+    .filter-btn{padding:6px 12px; font-size:0.75rem; border-radius:99px; background:transparent; border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); cursor:pointer; transition:0.2s}
+    .filter-btn:hover, .filter-btn.active{background:rgba(255,255,255,0.1); color:var(--neon-cyan); border-color:rgba(255,255,255,0.2)}
+  </style>
+</head>
+<body>
+  <div class="ambient-light">
+    <div class="blob blob-1" aria-hidden="true"></div>
+    <div class="blob blob-2" aria-hidden="true"></div>
+  </div>
+
+  <div class="container">
+    <div class="fusion-card closed" id="mainCard" aria-expanded="false">
+      <div class="card-header" id="cardHeader" role="button" tabindex="0" aria-label="Painel principal">
+        <div class="avatar-slot" id="avatarTarget" aria-hidden="true"></div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div style="font-weight:200;color:rgba(255,255,255,0.7)" id="lblHello">Sistema</div>
+            <div style="font-weight:600;color:#fff" id="lblName">Convidado</div>
+          </div>
+          <div class="brand-dual" aria-hidden="true">DUAL</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--font-code);font-weight:700;color:rgba(255,255,255,0.5)" id="clockTime" aria-live="polite">00:00</div>
+          <span style="font-size:0.6rem;color:var(--neon-cyan)">ONLINE</span>
+        </div>
+      </div>
+
+      <div class="small-preview" id="smallPreview" title="Clique para expandir" role="button" tabindex="0">
+        <div class="mini-avatar" id="smallMiniAvatar" aria-hidden="true"></div>
+        <div class="small-text" id="smallText">Ativação aparecerá aqui</div>
+        <div class="ident-badge" id="smallIdent">--</div>
+      </div>
+
+      <div class="card-body" id="cardBody">
+        <div class="input-wrapper stagger-item">
+          <input type="text" class="cyber-input" id="inputUser" placeholder="Identifique-se..." autocomplete="off" aria-label="Identifique-se" />
+        </div>
+
+        <button class="trigger-btn stagger-item" id="accordionTrigger" aria-expanded="false">
+          <span id="triggerText">ABRIR MÓDULOS</span>
+          <i data-lucide="chevron-down" id="triggerIcon" aria-hidden="true"></i>
+        </button>
+
+        <div class="activation-wrap stagger-item">
+          <div class="activation-toggle" id="activationToggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-top:5px" role="button" tabindex="0" aria-pressed="false">
+             <div style="display:flex;gap:8px;align-items:center"><div style="width:8px;height:8px;border-radius:99px;background:var(--neon-cyan)"></div><strong style="letter-spacing:1px;font-size:0.85rem">Ativação ASCII</strong></div>
+          </div>
+
+          <div id="activationCard" class="activation-card activation-hidden" style="margin-top:10px" aria-hidden="true">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div class="activation-mini">
+                <div class="mini-avatar" id="actMiniAvatar" aria-hidden="true"></div>
+                <div style="display:flex;flex-direction:column">
+                  <div id="actTitle" style="font-weight:700;font-size:0.85rem">CÉREBRO-ORÁCULO — BASE v1</div>
+                  <div style="font-size:0.75rem;color:rgba(255,255,255,0.55)">User: <span id="actName">(Convidado)</span></div>
+                </div>
+              </div>
+              <div style="margin-left:auto;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+                <div class="activation-badge" id="actBadge">v:--</div>
+              </div>
+            </div>
+
+            <pre id="actPre" class="activation-pre" style="margin-top:10px" aria-live="polite"></pre>
+
+            <div class="activation-controls" style="margin-top:10px;display:flex;gap:8px">
+              <button class="trigger-btn" id="copyActBtn" type="button" style="flex:1" aria-label="Copiar ativação">COPIAR</button>
+              <button class="trigger-btn" id="downloadActBtn" type="button" style="flex:1" aria-label="Baixar ativação">PNG</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hidden-modules stagger-item" id="modulesArea" style="margin-top:12px">
+          <div class="modules-inner">
+            <div class="stats-grid">
+              <div class="stat-box"><span class="stat-lbl">LATÊNCIA</span><span class="stat-val">12ms</span></div>
+              <div class="stat-box"><span class="stat-lbl">CPU</span><span class="stat-val">FUSION</span></div>
+              <div class="stat-box"><span class="stat-lbl">RITMO</span><span class="stat-val">BETA</span></div>
+            </div>
+
+            <div class="progress-container" style="margin-top:8px">
+              <div class="bar-meta" style="font-size:0.6rem;display:flex;justify-content:space-between"><span>CICLO DIÁRIO</span><span id="cyclePercent">0%</span></div>
+              <div class="bar-track"><div class="bar-fill" id="cycleFill" style="width:0%"></div></div>
+            </div>
+
+            <div class="html-module-slot" id="moduleHost" style="margin-top:8px" aria-hidden="false">
+              <div id="moduleControls" style="display:flex;flex-direction:column;gap:10px;width:100%">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <label style="flex:1">
+                    <input id="moduleFileInput" type="file" accept=".html,.htm,.md,.markdown,.css,.txt" style="display:none" />
+                    <button class="trigger-btn" id="chooseBtn" type="button" aria-label="Carregar arquivo">Carregar Arquivo</button>
+                  </label>
+
+                  <button class="trigger-btn" id="crystallizeBtn" type="button" title="Salvar" style="border-color:var(--neon-orange);color:var(--neon-orange)" aria-label="Salvar módulo">CRYSTALLIZE</button>
+                  <button class="trigger-btn" id="clearModulesBtn" type="button" title="Limpar" style="width:40px" aria-label="Limpar módulos">X</button>
+                </div>
+
+                <div id="dropZone" style="border-radius:10px;padding:15px;border:1px dashed rgba(255,255,255,0.1);font-size:0.75rem;text-align:center;transition:0.2s" aria-label="Drop zone">Arraste arquivos ou clique acima.</div>
+
+                <div style="display:flex;gap:8px;margin-top:5px;flex-wrap:wrap">
+                  <button class="trigger-btn" id="moduleInjectBtn" type="button" style="flex:2;border-color:var(--neon-cyan);color:var(--neon-cyan)" aria-label="Injetar módulo">INJETAR</button>
+                  <button class="trigger-btn" id="removePreviewBtn" type="button" style="flex:1" aria-label="Remover preview">LIMPAR</button>
+                </div>
+
+                <div class="preview-area" id="previewArea" aria-live="polite">
+                  <div id="previewMeta" style="font-size:0.72rem;color:rgba(255,255,255,0.5);margin-bottom:6px">Aguardando...</div>
+                  <div id="previewInner" style="border-radius:8px;overflow:hidden"></div>
+                </div>
+
+                <details style="margin-top:10px;color:rgba(255,255,255,0.9)">
+                  <summary style="cursor:pointer;padding:10px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:0.8rem">Editor CSS (Live)</summary>
+                  <div style="display:flex;gap:8px;flex-direction:column;padding-top:10px">
+                    <textarea id="cssEditor" placeholder="Escreva CSS..." style="display:none"></textarea>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+                      <label style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-right:auto"><input type="checkbox" id="scopeCss" checked /> Prefixar (.fusion-card)</label>
+                      <button class="trigger-btn" id="resetCssBtn" style="width:auto;padding:8px 16px" aria-label="Resetar CSS">Reset</button>
+                    </div>
+                  </div>
+                </details>
+
+                <div id="savedModulesList" style="margin-top:8px" aria-live="polite"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:100%;max-width:520px;display:flex;flex-direction:column;gap:16px">
+      
+      <div style="background:var(--glass-surface);border:1px solid var(--glass-border);border-radius:24px;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div>
+            <div style="font-weight:800;color:var(--neon-orange);font-size:1.1rem">⚡ INFINITY INJECTOR</div>
+            <div style="font-size:0.7rem;color:rgba(255,255,255,0.6)">VAULT • WRITE MODE</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="trigger-btn fs-save" data-action="save-immersive" id="saveImmBtn" style="font-size:0.7rem;padding:8px 12px" aria-label="Salvar stack">💾 SALVAR STACK</button>
+            <button class="trigger-btn" data-action="open-immersive" id="openImmBtn" style="font-size:0.7rem;padding:8px 12px" aria-label="Executar conteúdo">▶️ EXEC</button>
+          </div>
+        </div>
+
+        <div>
+          <textarea id="mainInput" class="code-area cyber-input" rows="5" placeholder="Cole seu código ou texto aqui..." style="border-radius:12px;font-family:var(--font-code);font-size:0.85rem;line-height:1.5" aria-label="Editor principal"></textarea>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="mainGroup" class="cyber-input" style="border-radius:10px;border:1px solid rgba(255,255,255,0.06);width:30%;padding:10px" placeholder="TAG (ex: APP)" aria-label="Tag do stack">
+            <button class="trigger-btn" id="saveManualBtn" style="flex:1;border-color:var(--neon-green);color:var(--neon-green)" aria-label="Salvar manualmente">GRAVAR NO VAULT</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;justify-content:space-between">
+            <strong style="font-size:0.9rem;letter-spacing:1px">STORAGE VAULT</strong>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="filter-btn active" data-filter="ALL" id="filterAll" aria-pressed="true">ALL</button>
+                <button class="filter-btn" data-filter="CODE" id="filterCode" aria-pressed="false">CODE</button>
+                <button class="filter-btn" data-filter="DOCS" id="filterDocs" aria-pressed="false">DOCS</button>
+                <button class="filter-btn" data-filter="APP" id="filterApp" aria-pressed="false">APP</button>
+            </div>
+        </div>
+        
+        <div id="vaultList" class="vault-grid" role="list" aria-live="polite"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="immersiveLayer" aria-hidden="true">
+    <div class="immersive-header">
+      <span style="font-family:var(--font-code);color:var(--neon-cyan)">// KERNEL RUNTIME</span>
+      <div style="display:flex;gap:10px">
+        <button id="immersiveSaveBtn" class="fs-header-btn fs-save" data-action="save-immersive" aria-label="Salvar do runtime">💾 SALVAR NO VAULT</button>
+        <button id="immersiveCloseBtn" class="fs-header-btn" data-action="close-immersive" style="color:#ff5555;border-color:rgba(255,0,0,0.25)" aria-label="Encerrar execução">ENCERRAR</button>
+      </div>
+    </div>
+    <div id="immersiveContainer" style="width:100%;height:100%;"></div>
+  </div>
+
+  <div id="saveModalBackdrop" class="save-modal-backdrop" aria-hidden="true">
+    <div class="save-modal" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
+      <h3 id="saveModalTitle">Crystallize Stack</h3>
+      <div style="font-size:0.85rem;color:#9fbfdc;margin-bottom:8px">Metadados para indexação no Vault.</div>
+      <div class="save-row">
+        <input id="saveTitle" class="input" placeholder="Título do Stack" aria-label="Título do stack" />
+        <input id="saveGroup" class="input" placeholder="Tag (ex: CODE)" aria-label="Tag do stack" />
+      </div>
+      <div style="font-size:0.75rem;color:#9fbfdc">Preview do Conteúdo</div>
+      <div id="savePreview" class="save-preview" aria-live="polite"></div>
+      <div class="save-actions">
+        <button id="saveCancelBtn" class="btn-ghost" aria-label="Cancelar salvar">CANCELAR</button>
+        <button id="saveConfirmBtn" class="btn-primary" aria-label="Confirmar salvar">CONFIRMAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- lightweight toast container (used instead of alert) -->
+  <div id="toast" aria-live="polite" style="position:fixed;right:20px;bottom:20px;z-index:10020;display:none;padding:10px 14px;border-radius:10px;background:rgba(0,0,0,0.7);color:#fff;font-weight:700"></div>
+
+  <script>
+  (function(){
+    'use strict';
+    // ---------- small utilities ----------
+    const $ = (sel, ctx=document) => ctx.querySelector(sel);
+    const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
+    const TOAST = $('#toast');
+
+    function notify(msg, opts={timeout:2000, color:null}) {
+      if(!TOAST) return alert(msg);
+      TOAST.style.display = 'block';
+      TOAST.textContent = msg;
+      TOAST.style.background = opts.color || 'rgba(0,0,0,0.78)';
+      clearTimeout(TOAST._t);
+      TOAST._t = setTimeout(()=> TOAST.style.display='none', opts.timeout || 2000);
+    }
+
+    function safeParse(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : fallback;
+      } catch(e) {
+        console.warn('storage parse failed', e);
+        return fallback;
+      }
+    }
+    function safeSet(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch(e) { console.warn('storage set failed', e); }
+    }
+
+    // ---------- DOM + state refs ----------
+    lucide.createIcons();
+    const avatarTarget = $('#avatarTarget');
+    const mainCard = $('#mainCard');
+    const saveModalBackdrop = $('#saveModalBackdrop');
+    const modalTitleInput = $('#saveTitle');
+    const modalGroupInput = $('#saveGroup');
+    const modalPreview = $('#savePreview');
+    const saveConfirmBtn = $('#saveConfirmBtn');
+    const saveCancelBtn = $('#saveCancelBtn');
+    const filterBtns = $$('.filter-btn');
+    const vaultListEl = $('#vaultList');
+    const immersiveLayer = $('#immersiveLayer');
+    const immersiveContainer = $('#immersiveContainer');
+    const saveManualBtn = $('#saveManualBtn');
+
+    // state
+    let items = safeParse('vault_v12', []);
+    let currentFilter = 'ALL';
+    let __modal_pending_content = '';
+    let regenLocks = new Map(); // prevent multiple regen for same id
+
+    // ---------- small helpers ----------
+    function escapeHtml(str){ if(!str) return ''; return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
+
+    // Avatar svgs
+    function createAvatarSVG(id,size=64){ return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g${id}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#00f2ff;stop-opacity:1"/><stop offset="100%" style="stop-color:#bd00ff;stop-opacity:1"/></linearGradient></defs><circle cx="50"cy="50"r="48"fill="#080b12"stroke="rgba(255,255,255,0.06)"stroke-width="1"/><path d="M50 15 A35 35 0 0 1 85 50" stroke="url(#g${id})" stroke-width="4" fill="none" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="6s" repeatCount="indefinite"/></path><circle cx="50"cy="50"r="20"fill="url(#g${id})" opacity="0.8"/></svg>`; }
+    avatarTarget.innerHTML = createAvatarSVG('Main',64);
+
+    function hashString(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); } return h>>>0; }
+    function makeMiniAvatarHTML(name,size=30){ const seed=hashString(name||'DUAL'); const h1=seed%360; const h2=(seed*37)%360; return `<svg width="${size}"height="${size}"viewBox="0 0 32 32"xmlns="http://www.w3.org/2000/svg"><rect x="0"y="0"width="32"height="32"rx="6"fill="#071018"/><circle cx="16"cy="12"r="6"fill="hsl(${h1},100%,55%)"/><path d="M16 24 a8 4 0 0 1 8 -4"stroke="hsl(${h2},90%,65%)"stroke-width="2"fill="none"stroke-linecap="round"/></svg>`; }
+    function reduce369(name){ if(!name||!name.trim()) return '--'; const s = name.split('').reduce((acc,ch)=>acc+ch.charCodeAt(0),0); let root=s; while(root>9) root=String(root).split('').reduce((a,b)=>a+Number(b),0); return root; }
+
+    // ---------- storage helpers ----------
+    function saveVault() { safeSet('vault_v12', items); renderVault(); }
+
+    function createCard(content, group='RAW', titleOverride, thumb){
+      const lines = (content||'').trim().split('\n');
+      const title = titleOverride || (lines[0]||'').substring(0,25).replace(/[#<]/g,'').trim() || 'Untitled Stack';
+      items.unshift({
+        id: Date.now(),
+        title,
+        content,
+        group:(group||'RAW').toUpperCase(),
+        date:new Date().toLocaleDateString(),
+        thumb: thumb || null
+      });
+      saveVault();
+    }
+
+    // ---------- Thumbnail Generation (html2canvas) ----------
+    // returns dataURL or null
+    async function generateThumbnail(html, opts = {width:480, height:270, scale:2}) {
+      // defensive: small timeout + sandboxed iframe
+      return new Promise((resolve) => {
+        let done = false;
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.left = '-9999px';
+        iframe.style.top = '-9999px';
+        iframe.style.width = opts.width + 'px';
+        iframe.style.height = opts.height + 'px';
+        iframe.style.border = 'none';
+        // allow-same-origin required for html2canvas to read DOM -> used only for thumb generation
+        iframe.sandbox = 'allow-scripts allow-same-origin';
+        document.body.appendChild(iframe);
+
+        const wrapped = `
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8"><meta name="viewport" content="width=${opts.width},initial-scale=1">
+              <style>html,body{margin:0;padding:0;background:#071018;color:#fff;overflow:hidden} img{max-width:100%;height:auto} body{display:flex;align-items:center;justify-content:center;height:100%}</style>
+            </head>
+            <body>${html}</body>
+          </html>
+        `;
+
+        function cleanup(result) {
+          if(done) return;
+          done = true;
+          try { iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch(e){}
+          resolve(result);
+        }
+
+        try { iframe.srcdoc = wrapped; } catch(e) { cleanup(null); return; }
+
+        const onLoaded = () => {
+          // small delay to let external resources paint
+          setTimeout(async () => {
+            try {
+              const doc = iframe.contentDocument || iframe.contentWindow.document;
+              // html2canvas may throw if cross-origin resources blocked — handle gracefully
+              const canvas = await html2canvas(doc.body, {backgroundColor:null, scale: opts.scale});
+              const dataUrl = canvas.toDataURL('image/png');
+              cleanup(dataUrl);
+            } catch (err) {
+              console.warn('generateThumbnail error', err);
+              cleanup(null);
+            }
+          }, 450);
+        };
+
+        iframe.addEventListener('load', onLoaded);
+        // safety timeout
+        setTimeout(()=> cleanup(null), 5500);
+      });
+    }
+
+    // ---------- Render Vault ----------
+    function renderVault(){
+      const list = vaultListEl;
+      const filtered = currentFilter === 'ALL' ? items : items.filter(i => i.group === currentFilter);
+      if(!filtered || filtered.length === 0){
+        list.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:20px;color:rgba(255,255,255,0.3);font-size:0.8rem">VAULT VAZIO NO SETOR ${escapeHtml(currentFilter)}</div>`;
+        return;
+      }
+
+      // build cards
+      list.innerHTML = filtered.map(i => {
+        const tagColor = i.group === 'CODE' ? 'var(--neon-green)' : (i.group === 'DOCS' ? 'var(--neon-purple)' : 'var(--neon-cyan)');
+        const thumbHtml = i.thumb ? `<img class="vc-thumb" src="${i.thumb}" alt="${escapeHtml(i.title)} thumbnail" />` : `<div class="vc-no-thumb" aria-hidden="true">No Preview</div>`;
+        return (
+          `<div class="vault-card" role="listitem" tabindex="0" data-id="${i.id}">
+              <div>
+                ${thumbHtml}
+                <div class="vc-tag-line" style="background:${tagColor}"></div>
+                <div class="vc-title" title="${escapeHtml(i.title)}">${escapeHtml(i.title)}</div>
+                <div class="vc-meta">
+                  <span style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px">${escapeHtml(i.group)}</span>
+                  <span>${escapeHtml(i.date)}</span>
+                </div>
+              </div>
+              <div class="vc-controls" role="group" aria-label="Ações do stack">
+                <button class="vc-btn btn-play" data-id="${i.id}" title="Executar / Ver" aria-label="Executar ${escapeHtml(i.title)}"><i data-lucide="play" width="12"></i></button>
+                <button class="vc-btn btn-load" data-id="${i.id}" title="Carregar para Edição" aria-label="Carregar ${escapeHtml(i.title)}"><i data-lucide="edit-3" width="12"></i></button>
+                <button class="vc-btn regen" id="btn-regen-${i.id}" data-id="${i.id}" title="Regerar Thumbnail (Cam)" aria-label="Regerar thumbnail"><i data-lucide="camera" width="12"></i></button>
+                <button class="vc-btn btn-copy" data-id="${i.id}" title="Copiar" aria-label="Copiar ${escapeHtml(i.title)}"><i data-lucide="copy" width="12"></i></button>
+                <button class="vc-btn del btn-delete" data-id="${i.id}" title="Apagar" aria-label="Apagar ${escapeHtml(i.title)}"><i data-lucide="trash-2" width="12"></i></button>
+              </div>
+           </div>`
+        );
+      }).join('');
+
+      lucide.createIcons();
+
+      // attach delegated listeners (single pass)
+      // play/load/regen/copy/delete
+      $$('.vault-card').forEach(card => {
+        card.addEventListener('keydown', (ev) => {
+          if(ev.key === 'Enter') {
+            const id = Number(card.dataset.id);
+            vaultExecute(id);
+          }
+        });
+      });
+
+      // delegate click events
+      list.addEventListener('click', vaultListClickHandler);
+    }
+
+    // delegate handler (keeps DOM small)
+    function vaultListClickHandler(e) {
+      const target = e.target.closest('button');
+      if(!target) return;
+      const id = Number(target.dataset.id);
+      if(target.classList.contains('btn-play')) return vaultExecute(id);
+      if(target.classList.contains('btn-load')) return vaultLoad(id);
+      if(target.classList.contains('btn-copy')) return vaultCopy(id);
+      if(target.classList.contains('btn-delete')) return vaultDelete(id);
+      if(target.classList.contains('regen')) return vaultRegenThumb(id, target);
+    }
+
+    // ---------- Vault Actions ----------
+    async function vaultExecute(id) {
+      const it = items.find(x => x.id === id);
+      if(!it){ notify('Stack não encontrada', {timeout:2000}); return; }
+      immersiveLoadedContent = it.content || '';
+      if(!immersiveLoadedContent){ notify('Conteúdo vazio', {timeout:2000}); return; }
+
+      immersiveContainer.innerHTML = '';
+      const iframe = document.createElement('iframe');
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      // Safer execution: do NOT set allow-same-origin (prevents stealing localStorage/cookies)
+      iframe.sandbox = "allow-scripts allow-forms allow-popups allow-modals";
+      // If you really need same-origin for some stacks, provide an explicit UI toggle (not automatic).
+      iframe.srcdoc = it.content;
+      immersiveContainer.appendChild(iframe);
+      immersiveLayer.classList.add('active');
+      immersiveLayer.setAttribute('aria-hidden', 'false');
+      notify('Execução iniciada', {timeout:1200});
+    }
+
+    // regen thumbnail; btnEl optional (to toggle spinner)
+    async function vaultRegenThumb(id, btnEl) {
+      if(regenLocks.get(id)) { notify('Regeneração já em andamento', {timeout:1200}); return; }
+      regenLocks.set(id, true);
+
+      const btn = btnEl || $(`#btn-regen-${id}`);
+      if(btn){
+        const svg = btn.querySelector('svg');
+        if(svg) svg.classList.add('spin-anim');
+      }
+
+      try {
+        const it = items.find(x => x.id === id);
+        if(!it) throw new Error('Item não encontrado');
+        const newThumb = await generateThumbnail(it.content, {width:480, height:270, scale:2});
+        if(newThumb) {
+          it.thumb = newThumb;
+          saveVault();
+          notify('Thumbnail regenerado ✔', {timeout:1200});
+        } else {
+          notify('Falha ao gerar thumbnail', {timeout:1500, color:'rgba(200,0,0,0.9)'});
+        }
+      } catch(err) {
+        console.warn('vaultRegenThumb error', err);
+        notify('Erro ao regenerar thumbnail', {timeout:1500, color:'rgba(200,0,0,0.9)'});
+      } finally {
+        regenLocks.delete(id);
+        if(btn){
+          const svg = btn.querySelector('svg');
+          if(svg) svg.classList.remove('spin-anim');
+        }
+      }
+    }
+
+    function vaultLoad(id) {
+      const it = items.find(x => x.id === id);
+      if(!it){ notify('Stack não encontrada', {timeout:1200}); return; }
+      $('#mainInput').value = it.content || '';
+      $('#mainGroup').value = it.group || '';
+      mainCard.scrollIntoView({behavior:'smooth'});
+      notify('Conteúdo carregado no editor', {timeout:900});
+    }
+
+    function vaultCopy(id) {
+      const it = items.find(x => x.id === id);
+      if(!it){ notify('Stack não encontrada'); return; }
+      try {
+        navigator.clipboard.writeText(it.content || '').then(()=> notify('Copiado para o clipboard ✔'));
+      } catch(e) {
+        notify('Falha ao copiar', {color:'rgba(200,0,0,0.9)'});
+      }
+    }
+
+    function vaultDelete(id) {
+      if(!confirm('Deletar este Stack permanentemente?')) return;
+      items = items.filter(x => x.id !== id);
+      saveVault();
+      notify('Stack removida', {timeout:1000});
+    }
+
+    // ---------- Filter wiring ----------
+    filterBtns.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        filterBtns.forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const f = btn.dataset.filter || 'ALL';
+        currentFilter = f;
+        renderVault();
+      });
+    });
+
+    // ---------- Modal logic (save preview) ----------
+    function openSaveModal(content, suggestedTitle='', suggestedGroup='IMPORT', cb){
+      __modal_pending_content = content || '';
+      modalTitleInput.value = suggestedTitle || '';
+      modalGroupInput.value = suggestedGroup || '';
+      modalPreview.textContent = (content||'').slice(0,1000) + ((content && content.length>1000)?'...':'');
+      saveModalBackdrop.classList.add('active');
+      document.body.style.overflow='hidden';
+      saveModalBackdrop.setAttribute('aria-hidden','false');
+      modalTitleInput.focus();
+      saveModalBackdrop._onSaveCb = cb;
+    }
+    function closeSaveModal(){
+      __modal_pending_content=''; saveModalBackdrop.classList.remove('active');
+      document.body.style.overflow=''; saveModalBackdrop.setAttribute('aria-hidden','true');
+      modalTitleInput.value=''; modalGroupInput.value=''; modalPreview.textContent='';
+      saveModalBackdrop._onSaveCb = null;
+    }
+
+    // debounce guard for confirm
+    let confirmBusy = false;
+    saveConfirmBtn.addEventListener('click', async ()=>{
+      if(confirmBusy) return;
+      confirmBusy = true;
+      const title = modalTitleInput.value.trim() || undefined;
+      const group = modalGroupInput.value.trim() || 'IMPORT';
+      if(!__modal_pending_content){ notify('Conteúdo vazio', {timeout:1100}); closeSaveModal(); confirmBusy=false; return; }
+
+      saveConfirmBtn.disabled = true;
+      saveConfirmBtn.textContent = 'Gerando thumbnail…';
+      let thumb = null;
+      try {
+        thumb = await generateThumbnail(__modal_pending_content, {width:480, height:270, scale:2});
+      } catch(e){
+        console.warn('thumb gen error', e);
+      }
+
+      createCard(__modal_pending_content, group, title, thumb);
+      closeSaveModal();
+      saveConfirmBtn.disabled = false;
+      saveConfirmBtn.textContent = 'CONFIRMAR';
+      if(typeof saveModalBackdrop._onSaveCb === 'function') saveModalBackdrop._onSaveCb();
+      notify('Stack salva ✔', {timeout:1000, color:'rgba(35,172,81,0.95)'});
+      confirmBusy = false;
+    });
+
+    saveCancelBtn.addEventListener('click', ()=> { closeSaveModal(); });
+
+    // close modal on backdrop click
+    saveModalBackdrop.addEventListener('click', (e) => { if(e.target === saveModalBackdrop) closeSaveModal(); });
+
+    // ---------- Immersive overlay (open from editor) ----------
+    let immersiveLoadedContent = '';
+    $('#openImmBtn').addEventListener('click', ()=>{
+      const text = $('#mainInput').value || '';
+      if(!text) return notify('Cole conteúdo no editor para executar', {timeout:1200});
+      immersiveLoadedContent = text;
+      immersiveContainer.innerHTML = '';
+      const iframe = document.createElement('iframe');
+      iframe.style.width='100%'; iframe.style.height='100%'; iframe.style.border='none';
+      // safer sandbox: NO allow-same-origin
+      iframe.sandbox = "allow-scripts allow-forms allow-popups allow-modals";
+      iframe.srcdoc = immersiveLoadedContent;
+      immersiveContainer.appendChild(iframe);
+      immersiveLayer.classList.add('active');
+      immersiveLayer.setAttribute('aria-hidden','false');
+      notify('Runtime aberto (sandboxed)', {timeout:1100});
+    });
+
+    $('#immersiveCloseBtn').addEventListener('click', ()=> {
+      immersiveLayer.classList.remove('active');
+      immersiveLayer.setAttribute('aria-hidden','true');
+      setTimeout(()=> immersiveContainer.innerHTML = '', 400);
+      notify('Runtime encerrado', {timeout:900});
+    });
+
+    $('#immersiveSaveBtn').addEventListener('click', ()=> {
+      if(!immersiveLoadedContent) return notify('Nenhum conteúdo em execução', {timeout:900});
+      openSaveModal(immersiveLoadedContent, (immersiveLoadedContent.split('\n')[0] || 'Untitled').slice(0,30), 'CODE');
+    });
+
+    // ---------- Clock / activation ----------
+    const els = {
+      lblHello: $('#lblHello'),
+      lblName: $('#lblName'),
+      actPre: $('#actPre'),
+      actName: $('#actName'),
+      actBadge: $('#actBadge'),
+      actMiniAvatar: $('#actMiniAvatar'),
+      smallMiniAvatar: $('#smallMiniAvatar'),
+      smallText: $('#smallText'),
+      smallIdent: $('#smallIdent'),
+      card: $('#mainCard'),
+      input: $('#inputUser'),
+      triggerBtn: $('#accordionTrigger'),
+      triggerText: $('#triggerText'),
+      triggerIcon: $('#triggerIcon'),
+    };
+
+    function updateActivation(name){
+      const root = reduce369(name);
+      const safeName = name ? name.trim() : 'Convidado';
+      els.actName.innerText = `(${safeName}).Dual Infodose`;
+      els.actBadge.innerText = `v:${root}`;
+      els.actMiniAvatar.innerHTML = makeMiniAvatarHTML(safeName,36);
+      els.smallMiniAvatar.innerHTML = makeMiniAvatarHTML(safeName,30);
+      const ascii = `+------------------------------+\n| CÉREBRO-ORÁCULO — BASE v1    |\n+------------------------------+\nAtivar: (${safeName}).Dual Infodose\nStatus: [AGUARDANDO SINTONIA...]`;
+      els.actPre.innerText = ascii;
+      const PHRASES=["Foco.","Criar.","Fluir.","Paz."];
+      const phrase = PHRASES[new Date().getHours()%PHRASES.length];
+      els.smallText.innerText = safeName ? `${safeName} · ${phrase}` : 'Ativação pendente';
+      els.smallIdent.innerText = `v:${root}`;
+    }
+
+    function toggleCard(forceOpen=false){
+      const card = els.card;
+      const isClosed = card.classList.contains('closed');
+      const open = forceOpen ? true : isClosed;
+      if(open){
+        card.classList.remove('closed'); card.classList.add('content-visible'); card.setAttribute('aria-expanded','true');
+      } else {
+        card.classList.add('closed'); card.classList.remove('content-visible'); card.setAttribute('aria-expanded','false');
+      }
+    }
+
+    // DOM ready bindings
+    document.addEventListener('DOMContentLoaded', ()=>{
+      setTimeout(()=> {
+        els.card.classList.add('active');
+        els.input.value = (function(){ try { return localStorage.getItem('fusion_user') || ''; } catch(e){ return ''; } })();
+        if(els.input.value){ els.lblHello.innerText='Oi,'; els.lblName.innerText = els.input.value; updateActivation(els.input.value); } else updateActivation('');
+      },120);
+
+      $('#cardHeader').addEventListener('click', ()=> toggleCard());
+      $('#smallPreview').addEventListener('click', (e)=> { e.stopPropagation(); toggleCard(true); });
+      $('#accordionTrigger').addEventListener('click', ()=>{
+        const open = els.card.classList.contains('open');
+        els.card.classList.toggle('open');
+        els.triggerText.innerText = open ? 'ABRIR MÓDULOS' : 'FECHAR MÓDULOS';
+        els.triggerIcon.setAttribute('data-lucide', open ? 'chevron-down' : 'chevron-up');
+        lucide.createIcons();
+      });
+
+      $('#activationToggle').addEventListener('click', ()=> {
+        const act = $('#activationCard');
+        act.classList.toggle('activation-hidden');
+        act.setAttribute('aria-hidden', act.classList.contains('activation-hidden') ? 'true' : 'false');
+      });
+
+      els.input.addEventListener('input', (e)=> { const val = e.target.value; els.lblHello.innerText = val ? 'Oi,' : 'Sistema'; els.lblName.innerText = val || 'Convidado'; updateActivation(val); });
+      els.input.addEventListener('blur',(e)=>{ if(e.target.value.trim()){ try{ localStorage.setItem('fusion_user', e.target.value.trim()); }catch(e){} } });
+
+      $('#copyActBtn').addEventListener('click', ()=> navigator.clipboard.writeText(els.actPre.innerText).then(()=> notify('Copiado!')));
+      $('#downloadActBtn').addEventListener('click', async ()=>{
+         const el = $('#activationCard');
+         if(el.classList.contains('activation-hidden')) el.classList.remove('activation-hidden');
+         try {
+           const canvas = await html2canvas(el, {backgroundColor:'#071018', scale:2});
+           const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = 'activation-dual.png'; a.click();
+           notify('PNG gerado ✔');
+         } catch (err) {
+           console.warn('downloadActBtn error', err);
+           notify('Falha ao gerar PNG', {color:'rgba(200,0,0,0.9)'});
+         }
+      });
+    });
+
+    // clock update
+    setInterval(()=>{
+      const now = new Date();
+      $('#clockTime').innerText = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const pct = ((now.getHours()*60 + now.getMinutes())/1440)*100;
+      $('#cycleFill').style.width = `${pct}%`;
+      $('#cyclePercent').innerText = `${Math.floor(pct)}%`;
+    },1000);
+
+    // ---------- Module System ----------
+    (function ModuleSystem(){
+      const dropZone = $('#dropZone');
+      const fileInput = $('#moduleFileInput');
+      const previewInner = $('#previewInner');
+      const cssEditorEl = $('#cssEditor');
+      let editorCM;
+      let currentFile = null;
+
+      setTimeout(()=>{
+        if(typeof CodeMirror !== 'undefined'){
+          try {
+            editorCM = CodeMirror.fromTextArea(cssEditorEl,{mode:'css',theme:'material',lineNumbers:true,viewportMargin:Infinity});
+            editorCM.on('change', ()=>{ const css = editorCM.getValue(); if($('#scopeCss').checked) applyCSS(css); });
+          } catch(e) { console.warn('CodeMirror init failed', e); }
+        }
+      },500);
+
+      async function handleFile(file){
+        const text = await file.text();
+        const ext = file.name.split('.').pop().toLowerCase();
+        currentFile = {name:file.name,type:ext,content:text};
+        $('#previewMeta').innerText = `${file.name} (${(file.size/1024).toFixed(1)}KB)`;
+        previewInner.innerHTML = '';
+        if(ext === 'css'){
+          previewInner.innerHTML = `<pre style="font-size:0.7rem;padding:5px">${escapeHtml(text.slice(0,300))}...</pre>`;
+          if(editorCM) editorCM.setValue(text);
+        } else if(['html','htm'].includes(ext)){
+          // sanitize when previewing to avoid executing user code on main origin
+          const iframe = document.createElement('iframe'); iframe.style.width='100%'; iframe.style.height='150px'; iframe.style.border='none';
+          // Use sandbox without allow-same-origin for preview inside main app
+          iframe.sandbox = 'allow-scripts';
+          iframe.srcdoc = DOMPurify.sanitize(text);
+          previewInner.appendChild(iframe);
+        } else {
+          previewInner.innerHTML = `<pre style="font-size:0.7rem;padding:5px">${escapeHtml(text.slice(0,300))}...</pre>`;
+        }
+      }
+
+      function applyCSS(css){
+        const styleId = 'injected-css';
+        let style = document.getElementById(styleId);
+        if(!style){ style = document.createElement('style'); style.id = styleId; document.head.appendChild(style); }
+        try{
+          const scoped = $('#scopeCss').checked ? css.replace(/([^\r\n,{}]+)(?=\{)/g, '.fusion-card $1') : css;
+          style.textContent = scoped;
+        }catch(e){ style.textContent = css; }
+      }
+
+      $('#chooseBtn').addEventListener('click', ()=> fileInput.click());
+      fileInput.addEventListener('change', (e)=> { if(e.target.files[0]) handleFile(e.target.files[0]); });
+      dropZone.addEventListener('dragover', (e)=> { e.preventDefault(); dropZone.style.background='rgba(255,255,255,0.04)'; });
+      dropZone.addEventListener('dragleave', (e)=> { e.preventDefault(); dropZone.style.background=''; });
+      dropZone.addEventListener('drop', (e)=> { e.preventDefault(); dropZone.style.background=''; if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+      $('#moduleInjectBtn').addEventListener('click', ()=>{
+        if(!currentFile){ notify('Nenhum arquivo carregado'); return; }
+        if(currentFile.type === 'css'){ if(editorCM) { applyCSS(editorCM.getValue()); notify('CSS injetado'); } return; }
+        // sanitize when inlining
+        const div = document.createElement('div');
+        div.className='module-crystallized';
+        div.style.marginTop='10px';
+        // safe: sanitize HTML before injecting to main document
+        div.innerHTML = DOMPurify.sanitize(currentFile.content, {ALLOWED_TAGS: false}); // use default policy
+        document.querySelector('.modules-inner').appendChild(div);
+        notify('Módulo injetado (sanitizado)');
+      });
+
+      $('#removePreviewBtn').addEventListener('click', ()=>{ currentFile=null; previewInner.innerHTML=''; $('#previewMeta').innerText=''; notify('Preview limpo'); });
+      $('#clearModulesBtn').addEventListener('click', ()=>{ document.querySelectorAll('.module-crystallized').forEach(n=>n.remove()); notify('Módulos removidos'); });
+      $('#crystallizeBtn').addEventListener('click', ()=> { if(!currentFile) { notify('Nenhum arquivo'); return; } openSaveModal(currentFile.content, currentFile.name.replace(/\.[^/.]+$/,''), (currentFile.type||'IMPORT').toUpperCase()); });
+      $('#resetCssBtn').addEventListener('click', ()=> { const el = document.getElementById('injected-css'); if(el) el.remove(); if(editorCM) editorCM.setValue(''); notify('CSS resetado'); });
+    })();
+
+    // ---------- Manual Save from editor ----------
+    saveManualBtn.addEventListener('click', async ()=>{
+      const text = $('#mainInput').value;
+      const group = $('#mainGroup').value || 'CODE';
+      if(!text || !text.trim()) { notify('Cole algo no editor para salvar', {timeout:1200}); return; }
+      const btn = saveManualBtn;
+      btn.disabled = true; btn.textContent = 'Gerando thumbnail…';
+      let thumb = null;
+      try { thumb = await generateThumbnail(text, {width:480, height:270, scale:2}); } catch(e){ console.warn('manual thumb err', e); thumb = null; }
+      createCard(text, group, undefined, thumb);
+      $('#mainInput').value = '';
+      btn.disabled = false; btn.textContent = 'GRAVAR NO VAULT';
+      notify('Stack salva ✔', {timeout:1000, color:'rgba(35,172,81,0.95)'});
+    });
+
+    // initial render
+    renderVault();
+
+    // expose some functions to window if user expects them (backwards compat)
+    window.vaultExecute = vaultExecute;
+    window.vaultLoad = vaultLoad;
+    window.vaultCopy = vaultCopy;
+    window.vaultDelete = vaultDelete;
+    window.vaultRegenThumb = vaultRegenThumb;
+    window.openSaveModal = openSaveModal;
+    window.createCard = createCard;
+
+  })();
+  </script>
+</body>
+</html>
